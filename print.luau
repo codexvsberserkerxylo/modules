@@ -97,7 +97,8 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-local myStatus = StatusManager:CreateStatus("Im gonna scare you ", Color3.fromRGB(255, 255, 0))
+-- test
+--[[local myStatus = StatusManager:CreateStatus("Im gonna scare you ", Color3.fromRGB(255, 255, 0))
 task.wait(0.9)
 for i = 1, 10 do
     task.wait(0.3)
@@ -105,4 +106,4 @@ for i = 1, 10 do
 end
 StatusManager:SetText(myStatus, "Boo! You been spooked!")
 StatusManager:SetEnabled(myStatus, true)
-StatusManager:SetColor(myStatus, Color3.fromRGB(0, 255, 0))
+StatusManager:SetColor(myStatus, Color3.fromRGB(0, 255, 0))]]
