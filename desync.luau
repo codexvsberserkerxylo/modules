@@ -9,7 +9,8 @@ local desync = {
     rl = nil,
     hb = nil,
     esp = nil,
-    espcon = nil
+    espcon = nil,
+    wp = {}
 }
 
 function desync:chr()
@@ -20,11 +21,14 @@ function desync:mkfake()
     local c = self:chr()
     local h = c:WaitForChild("HumanoidRootPart")
     
-    local f = h:Clone()
+    local f = Instance.new("Part")
     f.Name = "fkroot"
+    f.Size = h.Size
     f.Transparency = 1
     f.CanCollide = false
-    f.Anchored = true
+    f.Anchored = false
+    f.Massless = true
+    f.CFrame = h.CFrame
     f.Parent = c
     
     self.rl = h
@@ -78,35 +82,45 @@ function desync:go(o)
     
     self:mkfake()
     
-    local ocf = self.rl.CFrame
+    local startcf = self.rl.CFrame
     
     self.rl.Anchored = true
-    self.rl.CFrame = ocf * CFrame.new(self.off)
+    self.rl.CFrame = startcf * CFrame.new(self.off)
     self.rl.Transparency = 1
     
     self:mkesp()
     
-    local wp = {}
+    self.wp = {}
     for _, p in pairs(c:GetDescendants()) do
         if p:IsA("BasePart") and p ~= self.rl and p ~= self.fk then
-            local ofs = self.rl.CFrame:ToObjectSpace(p.CFrame)
-            table.insert(wp, {p = p, o = ofs})
+            local ofs = startcf:ToObjectSpace(p.CFrame)
+            table.insert(self.wp, {p = p, o = ofs})
         end
     end
     
-    self.fk.CFrame = ocf
+    self.fk.CFrame = startcf
     
-    self.hb = rs.Heartbeat:Connect(function()
+    self.hb = rs.Heartbeat:Connect(function(dt)
         if not self.on then return end
         if not self.fk or not self.fk.Parent then return end
+        if not hum or not hum.Parent then return end
+        
+        local mv = hum.MoveDirection
+        if mv.Magnitude > 0 then
+            local spd = hum.WalkSpeed
+            local delta = mv * spd * dt
+            self.fk.CFrame = self.fk.CFrame + delta
+        end
         
         local fc = self.fk.CFrame
         
-        for _, w in pairs(wp) do
+        for _, w in pairs(self.wp) do
             if w.p and w.p.Parent then
                 w.p.CFrame = fc * w.o
             end
         end
+        
+        self.rl.CFrame = fc * CFrame.new(self.off)
     end)
 end
 
@@ -122,39 +136,48 @@ function desync:stop()
     
     self:killesp()
     
-    if self.rl and self.rl.Parent then
-        local targetcf = self.fk and self.fk.CFrame or self.rl.CFrame
-        
-        self.rl.Velocity = Vector3.new(0, 0, 0)
-        self.rl.RotVelocity = Vector3.new(0, 0, 0)
-        self.rl.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        self.rl.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    if self.rl and self.rl.Parent and self.fk and self.fk.Parent then
+        local targetcf = self.fk.CFrame
         
         self.rl.CFrame = targetcf
-        self.rl.Transparency = 0
+        self.rl.Velocity = Vector3.new(0, 0, 0)
         self.rl.Anchored = false
+        self.rl.Transparency = 0
         
-        task.defer(function()
-            if self.rl and self.rl.Parent then
-                self.rl.Velocity = Vector3.new(0, 0, 0)
-                self.rl.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        for _, w in pairs(self.wp) do
+            if w.p and w.p.Parent then
+                w.p.CFrame = targetcf * w.o
             end
-        end)
-    end
-    
-    if self.fk and self.fk.Parent then
+        end
+        
         self.fk:Destroy()
         self.fk = nil
     end
     
     self.rl = nil
+    self.wp = {}
 end
 
-function desync:toggle(o)
-    if self.on then
-        self:stop()
-    else
-        self:go(o)
+function desync:tp(cf)
+    if not self.on then return end
+    if not self.fk or not self.fk.Parent then return end
+    
+    self.fk.CFrame = cf
+    
+    for _, w in pairs(self.wp) do
+        if w.p and w.p.Parent then
+            w.p.CFrame = cf * w.o
+        end
+    end
+    
+    self.rl.CFrame = cf * CFrame.new(self.off)
+end
+
+function desync:setoff(o)
+    self.off = o
+    
+    if self.on and self.rl and self.rl.Parent and self.fk and self.fk.Parent then
+        self.rl.CFrame = self.fk.CFrame * CFrame.new(self.off)
     end
 end
 
