@@ -1,6 +1,7 @@
 local plrs = game:GetService("Players")
 local rs = game:GetService("RunService")
 local lp = plrs.LocalPlayer
+local cam = workspace.CurrentCamera
 
 local desync = {
     on = false,
@@ -8,7 +9,8 @@ local desync = {
     real = nil,
     fake = nil,
     hb = nil,
-    esp = nil
+    esp = nil,
+    espcon = nil
 }
 
 function desync:chr()
@@ -17,51 +19,63 @@ end
 
 function desync:mkesp()
     self:killesp()
-    if not self.real or not self.real.Parent then return end
     
-    local box = Instance.new("BoxHandleAdornment")
-    box.Name = "dsyesp"
-    box.Size = Vector3.new(4, 6, 2)
-    box.Color3 = Color3.fromRGB(255, 0, 0)
-    box.Transparency = 0.5
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Adornee = self.real
-    
-    pcall(function()
-        box.Parent = game:GetService("CoreGui")
-    end)
-    
-    if not box.Parent then
-        box.Parent = lp:WaitForChild("PlayerGui")
-    end
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Color = Color3.fromRGB(255, 0, 0)
+    box.Thickness = 2
+    box.Filled = false
+    box.Transparency = 1
     
     self.esp = box
+    
+    self.espcon = rs.RenderStepped:Connect(function()
+        if not self.on then 
+            box.Visible = false
+            return 
+        end
+        if not self.real or not self.real.Parent then 
+            box.Visible = false
+            return 
+        end
+        
+        local pos = self.real.Position
+        local screenpos, onscreen = cam:WorldToViewportPoint(pos)
+        
+        if onscreen then
+            local sz = 50
+            box.Size = Vector2.new(sz, sz * 1.5)
+            box.Position = Vector2.new(screenpos.X - sz/2, screenpos.Y - sz * 0.75)
+            box.Visible = true
+        else
+            box.Visible = false
+        end
+    end)
 end
 
 function desync:killesp()
-    if self.esp then
-        self.esp:Destroy()
-        self.esp = nil
+    if self.espcon then
+        self.espcon:Disconnect()
+        self.espcon = nil
     end
     
-    pcall(function()
-        for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
-            if v.Name == "dsyesp" then v:Destroy() end
-        end
-    end)
-    
-    pcall(function()
-        for _, v in pairs(lp.PlayerGui:GetChildren()) do
-            if v.Name == "dsyesp" then v:Destroy() end
-        end
-    end)
+    if self.esp then
+        self.esp:Remove()
+        self.esp = nil
+    end
 end
 
 function desync:go(o)
     if self.on then return end
     
-    self.off = o or Vector3.new(0, 0, 50)
+    if typeof(o) == "CFrame" then
+        self.off = o.Position
+    elseif typeof(o) == "Vector3" then
+        self.off = o
+    else
+        self.off = Vector3.new(0, 0, 50)
+    end
+    
     self.on = true
     
     local c = self:chr()
@@ -102,12 +116,7 @@ function desync:go(o)
     clone.CFrame = startcf
     clone.Parent = c
     
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.RootPart = clone
-    end
-    
-    workspace.CurrentCamera.CameraSubject = hum
+    workspace.CurrentCamera.CameraSubject = c:FindFirstChildOfClass("Humanoid")
     
     self:mkesp()
     
@@ -156,12 +165,7 @@ function desync:stop()
             end
         end
         
-        local hum = c:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.RootPart = self.real
-        end
-        
-        workspace.CurrentCamera.CameraSubject = hum
+        workspace.CurrentCamera.CameraSubject = c:FindFirstChildOfClass("Humanoid")
     end
     
     if self.fake then
@@ -176,11 +180,33 @@ function desync:tp(cf)
     if not self.on then return end
     if not self.fake or not self.fake.Parent then return end
     
+    if typeof(cf) == "Vector3" then
+        cf = CFrame.new(cf)
+    end
+    
     self.fake.CFrame = cf
 end
 
 function desync:setoff(o)
-    self.off = o or Vector3.new(0, 0, 50)
+    if typeof(o) == "CFrame" then
+        self.off = o.Position
+    elseif typeof(o) == "Vector3" then
+        self.off = o
+    end
 end
+
+function desync:toggle(o)
+    if self.on then
+        self:stop()
+    else
+        self:go(o)
+    end
+end
+
+lp.CharacterAdded:Connect(function()
+    if desync.on then
+        desync:stop()
+    end
+end)
 
 return desync
