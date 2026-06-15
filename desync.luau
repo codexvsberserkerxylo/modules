@@ -71,7 +71,7 @@ function desync:go(o)
     
     local clone = hrp:Clone()
     clone.Name = "HumanoidRootPart"
-    clone.Transparency = 1
+    clone.Transparency = 0
     clone.CanCollide = true
     clone.Anchored = false
     
