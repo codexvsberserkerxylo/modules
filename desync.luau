@@ -5,44 +5,19 @@ local lp = plrs.LocalPlayer
 local desync = {
     on = false,
     off = Vector3.new(0, 0, 0),
-    fk = nil,
-    rl = nil,
+    real = nil,
+    fake = nil,
     hb = nil,
-    camcon = nil,
-    esp = nil,
-    espcon = nil,
-    wp = {},
-    oldsubject = nil
+    esp = nil
 }
 
 function desync:chr()
     return lp.Character or lp.CharacterAdded:Wait()
 end
 
-function desync:mkfake()
-    local c = self:chr()
-    local h = c:WaitForChild("HumanoidRootPart")
-    
-    local f = Instance.new("Part")
-    f.Name = "fkroot"
-    f.Size = h.Size
-    f.Transparency = 1
-    f.CanCollide = false
-    f.Anchored = false
-    f.Massless = true
-    f.CFrame = h.CFrame
-    f.Parent = c
-    
-    self.rl = h
-    self.fk = f
-    
-    return f
-end
-
 function desync:mkesp()
     self:killesp()
-    
-    if not self.rl or not self.rl.Parent then return end
+    if not self.real or not self.real.Parent then return end
     
     local box = Instance.new("BoxHandleAdornment")
     box.Name = "dsyesp"
@@ -51,15 +26,13 @@ function desync:mkesp()
     box.Transparency = 0.5
     box.AlwaysOnTop = true
     box.ZIndex = 10
-    box.Adornee = self.rl
+    box.Adornee = self.real
     
-    local ok, gui = pcall(function()
-        return game:GetService("CoreGui")
+    pcall(function()
+        box.Parent = game:GetService("CoreGui")
     end)
     
-    if ok and gui then
-        box.Parent = gui
-    else
+    if not box.Parent then
         box.Parent = lp:WaitForChild("PlayerGui")
     end
     
@@ -67,27 +40,20 @@ function desync:mkesp()
 end
 
 function desync:killesp()
-    if self.espcon then
-        self.espcon:Disconnect()
-        self.espcon = nil
-    end
-    
     if self.esp then
         self.esp:Destroy()
         self.esp = nil
     end
     
-    for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
-        if v.Name == "dsyesp" then
-            v:Destroy()
+    pcall(function()
+        for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+            if v.Name == "dsyesp" then v:Destroy() end
         end
-    end
+    end)
     
     pcall(function()
         for _, v in pairs(lp.PlayerGui:GetChildren()) do
-            if v.Name == "dsyesp" then
-                v:Destroy()
-            end
+            if v.Name == "dsyesp" then v:Destroy() end
         end
     end)
 end
@@ -99,69 +65,63 @@ function desync:go(o)
     self.on = true
     
     local c = self:chr()
-    local hum = c:WaitForChild("Humanoid")
-    local cam = workspace.CurrentCamera
+    local hrp = c:WaitForChild("HumanoidRootPart")
     
-    self:mkfake()
+    local startcf = hrp.CFrame
     
-    local startcf = self.rl.CFrame
+    local clone = hrp:Clone()
+    clone.Name = "HumanoidRootPart"
+    clone.Transparency = 0
+    clone.CanCollide = true
+    clone.Anchored = false
     
-    self.oldsubject = cam.CameraSubject
+    hrp.Name = "RealRoot"
+    hrp.Transparency = 1
+    hrp.CanCollide = false
+    hrp.Anchored = true
+    hrp.CFrame = startcf * CFrame.new(self.off)
     
-    self.rl.Anchored = true
-    self.rl.CFrame = startcf * CFrame.new(self.off)
-    self.rl.Transparency = 1
+    self.real = hrp
+    self.fake = clone
     
-    self.wp = {}
-    for _, p in pairs(c:GetDescendants()) do
-        if p:IsA("BasePart") and p ~= self.rl and p ~= self.fk then
-            local ofs = startcf:ToObjectSpace(p.CFrame)
-            table.insert(self.wp, {p = p, o = ofs})
-        end
-    end
-    
-    self.fk.CFrame = startcf
-    
-    self:mkesp()
-    
-    self.camcon = rs.RenderStepped:Connect(function()
-        if not self.on then return end
-        if not self.fk or not self.fk.Parent then return end
-        
-        local cf = self.fk.CFrame
-        local offset = cam.CFrame.Position - (self.oldsubject and self.oldsubject:IsA("BasePart") and self.oldsubject.Position or cf.Position)
-        
-        cam.CameraSubject = nil
-        cam.CFrame = CFrame.new(cf.Position) * CFrame.new(0, 2, 10) * CFrame.Angles(0, 0, 0)
-    end)
-    
-    self.hb = rs.Heartbeat:Connect(function(dt)
-        if not self.on then return end
-        if not self.fk or not self.fk.Parent then return end
-        if not hum or not hum.Parent then return end
-        
-        local mv = hum.MoveDirection
-        if mv.Magnitude > 0 then
-            local spd = hum.WalkSpeed
-            local delta = mv * spd * dt
-            self.fk.CFrame = self.fk.CFrame + delta
-        end
-        
-        local fc = self.fk.CFrame
-        
-        for _, w in pairs(self.wp) do
-            if w.p and w.p.Parent then
-                w.p.CFrame = fc * w.o
+    for _, obj in pairs(c:GetDescendants()) do
+        if obj:IsA("Motor6D") or obj:IsA("Weld") or obj:IsA("WeldConstraint") then
+            if obj.Part0 == hrp then
+                obj.Part0 = clone
+            end
+            if obj.Part1 == hrp then
+                obj.Part1 = clone
             end
         end
         
-        self.rl.CFrame = fc * CFrame.new(self.off)
+        if obj:IsA("Attachment") and obj.Parent == hrp then
+            obj.Parent = clone
+        end
+    end
+    
+    clone.CFrame = startcf
+    clone.Parent = c
+    
+    local hum = c:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.RootPart = clone
+    end
+    
+    workspace.CurrentCamera.CameraSubject = hum
+    
+    self:mkesp()
+    
+    self.hb = rs.Heartbeat:Connect(function()
+        if not self.on then return end
+        if not self.fake or not self.fake.Parent then return end
+        if not self.real or not self.real.Parent then return end
+        
+        self.real.CFrame = self.fake.CFrame * CFrame.new(self.off)
     end)
 end
 
 function desync:stop()
     if not self.on then return end
-    
     self.on = false
     
     if self.hb then
@@ -169,67 +129,58 @@ function desync:stop()
         self.hb = nil
     end
     
-    if self.camcon then
-        self.camcon:Disconnect()
-        self.camcon = nil
-    end
-    
     self:killesp()
     
-    local cam = workspace.CurrentCamera
     local c = self:chr()
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    
-    if hum then
-        cam.CameraSubject = hum
-    end
-    
-    if self.rl and self.rl.Parent and self.fk and self.fk.Parent then
-        local targetcf = self.fk.CFrame
+    if self.real and self.real.Parent then
+        local restoreCF = self.fake and self.fake.CFrame or self.real.CFrame
         
-        self.rl.CFrame = targetcf
-        self.rl.Velocity = Vector3.new(0, 0, 0)
-        self.rl.Anchored = false
-        self.rl.Transparency = 0
+        self.real.Name = "HumanoidRootPart"
+        self.real.Transparency = 0
+        self.real.CanCollide = true
+        self.real.Anchored = false
+        self.real.CFrame = restoreCF
         
-        for _, w in pairs(self.wp) do
-            if w.p and w.p.Parent then
-                w.p.CFrame = targetcf * w.o
+        for _, obj in pairs(c:GetDescendants()) do
+            if obj:IsA("Motor6D") or obj:IsA("Weld") or obj:IsA("WeldConstraint") then
+                if obj.Part0 == self.fake then
+                    obj.Part0 = self.real
+                end
+                if obj.Part1 == self.fake then
+                    obj.Part1 = self.real
+                end
+            end
+            
+            if obj:IsA("Attachment") and self.fake and obj.Parent == self.fake then
+                obj.Parent = self.real
             end
         end
         
-        self.fk:Destroy()
-        self.fk = nil
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.RootPart = self.real
+        end
+        
+        workspace.CurrentCamera.CameraSubject = hum
     end
     
-    self.rl = nil
-    self.wp = {}
+    if self.fake then
+        self.fake:Destroy()
+        self.fake = nil
+    end
+    
+    self.real = nil
 end
 
 function desync:tp(cf)
     if not self.on then return end
-    if not self.rl or not self.rl.Parent then return end
-    if not self.fk or not self.fk.Parent then return end
+    if not self.fake or not self.fake.Parent then return end
     
-    self.rl.Anchored = false
-    self.rl.CFrame = cf * CFrame.new(self.off)
-    task.wait(0.1)
-    self.rl.Anchored = true
-    
-    self.fk.CFrame = cf
-    
-    for _, w in pairs(self.wp) do
-        if w.p and w.p.Parent then
-            w.p.CFrame = cf * w.o
-        end
-    end
+    self.fake.CFrame = cf
 end
 
 function desync:setoff(o)
-    self.off = o
-    if self.on and self.rl and self.rl.Parent and self.fk and self.fk.Parent then
-        self.rl.CFrame = self.fk.CFrame * CFrame.new(self.off)
-    end
+    self.off = o or Vector3.new(0, 0, 50)
 end
 
 return desync
