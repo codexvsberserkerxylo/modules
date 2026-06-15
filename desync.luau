@@ -1,7 +1,6 @@
 local plrs = game:GetService("Players")
 local rs = game:GetService("RunService")
 local lp = plrs.LocalPlayer
-local cam = workspace.CurrentCamera
 
 local desync = {
     on = false,
@@ -19,36 +18,57 @@ end
 
 function desync:mkesp()
     self:killesp()
+    if not self.real or not self.real.Parent then return end
     
-    local box = Drawing.new("Square")
-    box.Visible = false
-    box.Color = Color3.fromRGB(255, 0, 0)
-    box.Thickness = 2
-    box.Filled = false
-    box.Transparency = 1
+    local c = self:chr()
+    local ghost = c:Clone()
+    ghost.Name = "dsyghost"
     
-    self.esp = box
+    for _, obj in pairs(ghost:GetDescendants()) do
+        if obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+            obj:Destroy()
+        end
+        if obj:IsA("BasePart") then
+            obj.CanCollide = false
+            obj.Anchored = true
+            obj.Transparency = 0.6
+        end
+        if obj:IsA("Decal") or obj:IsA("Texture") then
+            obj.Transparency = 0.6
+        end
+    end
+    
+    local ghosthrp = ghost:FindFirstChild("HumanoidRootPart") or ghost:FindFirstChild("RealRoot")
+    if ghosthrp then
+        ghosthrp.Transparency = 1
+    end
+    
+    local ghosthum = ghost:FindFirstChildOfClass("Humanoid")
+    if ghosthum then
+        ghosthum:Destroy()
+    end
+    
+    ghost.Parent = workspace
+    
+    self.esp = ghost
     
     self.espcon = rs.RenderStepped:Connect(function()
-        if not self.on then 
-            box.Visible = false
-            return 
-        end
-        if not self.real or not self.real.Parent then 
-            box.Visible = false
-            return 
-        end
+        if not self.on then return end
+        if not self.real or not self.real.Parent then return end
+        if not self.esp or not self.esp.Parent then return end
         
-        local pos = self.real.Position
-        local screenpos, onscreen = cam:WorldToViewportPoint(pos)
-        
-        if onscreen then
-            local sz = 50
-            box.Size = Vector2.new(sz, sz * 1.5)
-            box.Position = Vector2.new(screenpos.X - sz/2, screenpos.Y - sz * 0.75)
-            box.Visible = true
-        else
-            box.Visible = false
+        local ghostroot = self.esp:FindFirstChild("HumanoidRootPart") or self.esp:FindFirstChild("RealRoot")
+        if ghostroot then
+            local offset = self.real.CFrame:ToObjectSpace(self.fake.CFrame)
+            for _, part in pairs(self.esp:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local originalpart = self:chr():FindFirstChild(part.Name, true)
+                    if originalpart and originalpart:IsA("BasePart") then
+                        local relcf = self.fake.CFrame:ToObjectSpace(originalpart.CFrame)
+                        part.CFrame = self.real.CFrame * relcf
+                    end
+                end
+            end
         end
     end)
 end
@@ -60,8 +80,14 @@ function desync:killesp()
     end
     
     if self.esp then
-        self.esp:Remove()
+        self.esp:Destroy()
         self.esp = nil
+    end
+    
+    for _, v in pairs(workspace:GetChildren()) do
+        if v.Name == "dsyghost" then
+            v:Destroy()
+        end
     end
 end
 
@@ -117,8 +143,6 @@ function desync:go(o)
     clone.Parent = c
     
     workspace.CurrentCamera.CameraSubject = c:FindFirstChildOfClass("Humanoid")
-    
-    self:mkesp()
     
     self.hb = rs.Heartbeat:Connect(function()
         if not self.on then return end
