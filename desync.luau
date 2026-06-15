@@ -60,51 +60,67 @@ end
 
 function desync:go(o)
     if self.on then return end
-        self.off = o or Vector3.new(0, 9999, 0)
+    
+    self.off = o or Vector3.new(0, 0, 50)
     self.on = true
-
-    local chr = self:chr()
-    local hrp = chr:WaitForChild("HumanoidRootPart")
-
-    self.real = hrp:Clone()
-    self.real.Name = "dsyreal"
-    self.real.Anchored = true
-    self.real.CanCollide = false
-    self.real.Transparency = 1
-    self.real.Parent = workspace
-
+    
+    local c = self:chr()
+    local hrp = c:WaitForChild("HumanoidRootPart")
+    
+    local ghost = Instance.new("Part")
+    ghost.Name = "dsyghost"
+    ghost.Size = hrp.Size
+    ghost.Transparency = 1
+    ghost.CanCollide = false
+    ghost.Anchored = true
+    ghost.CFrame = hrp.CFrame * CFrame.new(self.off)
+    ghost.Parent = workspace
+    
+    self.real = ghost
     self.fake = hrp
-
+    
     self:mkesp()
-
+    
     self.hb = rs.Heartbeat:Connect(function()
         if not self.on then return end
-        if not chr or not chr.Parent then
+        if not self.fake or not self.fake.Parent then 
             self:stop()
-            return
+            return 
         end
-
-        self.real.CFrame = self.fake.CFrame
-        self.fake.CFrame = self.fake.CFrame + self.off
+        if not self.real or not self.real.Parent then return end
+        
+        self.real.CFrame = self.fake.CFrame * CFrame.new(self.off)
     end)
 end
 
 function desync:stop()
+    if not self.on then return end
     self.on = false
-
+    
     if self.hb then
         self.hb:Disconnect()
         self.hb = nil
     end
-
+    
     self:killesp()
-
+    
     if self.real then
         self.real:Destroy()
         self.real = nil
     end
-
+    
     self.fake = nil
+end
+
+function desync:tp(cf)
+    if not self.on then return end
+    if not self.fake or not self.fake.Parent then return end
+    
+    self.fake.CFrame = cf
+end
+
+function desync:setoff(o)
+    self.off = o or Vector3.new(0, 0, 50)
 end
 
 function desync:toggle(o)
