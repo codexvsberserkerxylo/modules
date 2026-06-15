@@ -21,19 +21,20 @@ function desync:mkesp()
     if not self.real or not self.real.Parent then return end
     
     local c = self:chr()
+    c.Archivable = true
     local ghost = c:Clone()
     ghost.Name = "dsyghost"
     
     for _, obj in pairs(ghost:GetDescendants()) do
         if obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
             obj:Destroy()
-        end
-        if obj:IsA("BasePart") then
+        elseif obj:IsA("BasePart") then
             obj.CanCollide = false
+            obj.CanQuery = false
+            obj.CanTouch = false
             obj.Anchored = true
             obj.Transparency = 0.6
-        end
-        if obj:IsA("Decal") or obj:IsA("Texture") then
+        elseif obj:IsA("Decal") or obj:IsA("Texture") then
             obj.Transparency = 0.6
         end
     end
@@ -49,7 +50,6 @@ function desync:mkesp()
     end
     
     ghost.Parent = workspace
-    
     self.esp = ghost
     
     self.espcon = rs.RenderStepped:Connect(function()
@@ -59,13 +59,15 @@ function desync:mkesp()
         
         local ghostroot = self.esp:FindFirstChild("HumanoidRootPart") or self.esp:FindFirstChild("RealRoot")
         if ghostroot then
-            local offset = self.real.CFrame:ToObjectSpace(self.fake.CFrame)
+            local real_chr = self:chr()
+            if not real_chr then return end
+            
             for _, part in pairs(self.esp:GetDescendants()) do
                 if part:IsA("BasePart") then
-                    local originalpart = self:chr():FindFirstChild(part.Name, true)
+                    local originalpart = real_chr:FindFirstChild(part.Name)
                     if originalpart and originalpart:IsA("BasePart") then
-                        local relcf = self.fake.CFrame:ToObjectSpace(originalpart.CFrame)
-                        part.CFrame = self.real.CFrame * relcf
+                        local relcf = self.real.CFrame:ToObjectSpace(originalpart.CFrame)
+                        part.CFrame = self.fake.CFrame * relcf
                     end
                 end
             end
