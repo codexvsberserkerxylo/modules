@@ -1,93 +1,94 @@
--- not mine
-local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
+-- base is from rscripts i forgot by who tho
+local gui = game:GetService("CoreGui")
+local rs = game:GetService("RunService")
 
-getgenv().StatusManager = getgenv().StatusManager or {
+getgenv().printModule = getgenv().printModule or {
     statuses = {},
-    nextId = 1
+    nid = 1
 }
-local StatusManager = getgenv().StatusManager
 
-function StatusManager:CreateStatus(text, color)
-    local id = self.nextId
-    self.nextId = self.nextId + 1
+local printModule = getgenv().printModule
 
-    local statusNumString = tostring(math.random(10000, 99999)) .. "_" .. tostring(id)
+function printModule:CreateStatus(text, color)
+    local id = self.nid
+    self.nid = self.nid + 1
 
-    local currentTime = os.date("*t")
-    local timeString = string.format("%02d:%02d:%02d", currentTime.hour, currentTime.min, currentTime.sec)
+    local numstring = tostring(math.random(10000, 99999)) .. "_" .. tostring(id)
+
+    local ctime = os.date("*t")
+    local time = string.format("%02d:%02d:%02d", ctime.hour, ctime.min, ctime.sec)
 
     self.statuses[id] = {
         id = id,
-        identifier = statusNumString,
-        timeString = timeString, 
+        identifier = numstring,
+        timeString = time, 
         text = text or "Status",
         color = color or Color3.fromRGB(255, 255, 255),
         enabled = true
     }
 
-    print(statusNumString)
+    print(numstring)
 
     return id
 end
 
-function StatusManager:SetText(id, text)
+function printModule:SetText(id, text)
     if self.statuses[id] then
         self.statuses[id].text = text
     end
 end
 
-function StatusManager:SetColor(id, color)
+function printModule:SetColor(id, color)
     if self.statuses[id] then
         self.statuses[id].color = color
     end
 end
 
-function StatusManager:SetEnabled(id, enabled)
+function printModule:SetEnabled(id, enabled)
     if self.statuses[id] then
         self.statuses[id].enabled = enabled
     end
 end
 
-function StatusManager:RemoveStatus(id)
+function printModule:RemoveStatus(id)
     self.statuses[id] = nil
 end
 
 task.wait(0.1)
 
-RunService.Heartbeat:Connect(function()
-    local devConsole = CoreGui:FindFirstChild("DevConsoleMaster")
-    if not devConsole then return end
+rs.Heartbeat:Connect(function()
+    local dev = gui:FindFirstChild("DevConsoleMaster")
+    if not dev then return end
 
-    local window = devConsole:FindFirstChild("DevConsoleWindow")
+    local window = dev:FindFirstChild("DevConsoleWindow")
     if not window or not window.Visible then return end
 
-    local clientLog = window:FindFirstChild("DevConsoleUI")
-    if clientLog then
-        clientLog = clientLog:FindFirstChild("MainView")
-        if clientLog then
-            clientLog = clientLog:FindFirstChild("ClientLog")
+    local log = window:FindFirstChild("DevConsoleUI")
+    if log then
+        log = log:FindFirstChild("MainView")
+        if log then
+            log = log:FindFirstChild("ClientLog")
         end
     end
 
-    if not clientLog then return end
+    if not log then print("critical error: log not found")return end
 
-    for _, child in pairs(clientLog:GetChildren()) do
+    for _, child in pairs(log:GetChildren()) do
         if child.ClassName == "Frame" and child.Name ~= "WindowingPadding" then
-            local msgLabel = child:FindFirstChild("msg")
-            if msgLabel then
-                for id, status in pairs(StatusManager.statuses) do
+            local msg = child:FindFirstChild("msg")
+            if msg then
+                for id, status in pairs(printModule.statuses) do
                     if status.enabled then
                         local found = false
-                        if string.find(msgLabel.Text, status.identifier) then
+                        if string.find(msg.Text, status.identifier) then
                             child.Name = "Status_" .. status.identifier
                             found = true
                         elseif child.Name == "Status_" .. status.identifier then
                             found = true
                         end
                         if found then
-                            msgLabel.Text = status.timeString .. " -- " .. status.text
-                            msgLabel.TextColor3 = status.color
+                            msg.Text = status.timeString .. " -- " .. status.text
+                            msg.TextColor3 = status.color
                             break
                         end
                     end
@@ -97,13 +98,15 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- test
---[[local myStatus = StatusManager:CreateStatus("Im gonna scare you ", Color3.fromRGB(255, 255, 0))
+-- example: 
+--[[
+local status = printModule:CreateStatus("im gonna say hi in 10 seconds ", Color3.fromRGB(255, 255, 0))
 task.wait(0.9)
 for i = 1, 10 do
     task.wait(0.3)
-    StatusManager:SetText(myStatus, tostring(i))
+    printModule:SetText(status, tostring(i))
 end
-StatusManager:SetText(myStatus, "Boo! You been spooked!")
-StatusManager:SetEnabled(myStatus, true)
-StatusManager:SetColor(myStatus, Color3.fromRGB(0, 255, 0))]]
+printModule:SetText(status, "hi")
+printModule:SetEnabled(status, true)
+printModule:SetColor(status, Color3.fromRGB(0, 255, 0))
+]]
